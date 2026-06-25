@@ -28,3 +28,8 @@ npm-debug.log*
 
 # Tooling local de Claude Code
 .claude/
+
+# package.json/lock raíz que genera `prisma generate` (no es del monorepo)
+/package.json
+/package-lock.json
+/node_modules/
