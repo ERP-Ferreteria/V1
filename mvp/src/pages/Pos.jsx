@@ -16,7 +16,7 @@ export default function Pos() {
   const toast = useUI((s) => s.toast);
 
   const [cat, setCat] = useState('Tornillería');
-  const visibles = productos.filter((p) => p.categoria === cat);
+  const visibles = productos.filter((p) => p.activo !== false && p.categoria === cat);
 
   function finalizar() {
     const orden = cobrar();

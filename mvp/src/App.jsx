@@ -9,6 +9,7 @@ import BrandMark from './components/BrandMark.jsx';
 import Catalog from './pages/Catalog.jsx';
 import Pos from './pages/Pos.jsx';
 import Kanban from './pages/Kanban.jsx';
+import Admin from './pages/Admin.jsx';
 import Settings from './pages/Settings.jsx';
 
 // PILAR 5 — Router + layout. Las 3 vistas comparten el mismo estado global.
@@ -37,8 +38,11 @@ export default function App() {
             🧾 Cajero (POS)
           </NavLink>
           <NavLink to="/kanban" className={({ isActive }) => (isActive ? 'active' : '')}>
-            📋 Dashboard Kanban
+            📋 Kanban
             {pendientes > 0 && <span className="nav-badge alert">{pendientes}</span>}
+          </NavLink>
+          <NavLink to="/admin" className={({ isActive }) => (isActive ? 'active' : '')}>
+            📊 Admin
           </NavLink>
           <NavLink to="/configuracion" className={({ isActive }) => (isActive ? 'active' : '')}>
             ⚙️ Personalizar
@@ -54,6 +58,7 @@ export default function App() {
           <Route path="/catalogo" element={<Catalog />} />
           <Route path="/pos" element={<Pos />} />
           <Route path="/kanban" element={<Kanban />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="/configuracion" element={<Settings />} />
         </Routes>
       </main>

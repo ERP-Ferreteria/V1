@@ -39,7 +39,9 @@ export default function Catalog() {
   const [cliente, setCliente] = useState('');
   const [enviado, setEnviado] = useState(null);
 
-  const visibles = productos.filter((p) => filtro === 'Todas' || p.categoria === filtro);
+  const visibles = productos.filter(
+    (p) => p.activo !== false && (filtro === 'Todas' || p.categoria === filtro),
+  );
 
   function confirmarPorWhatsapp() {
     if (carrito.length === 0) return;

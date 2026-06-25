@@ -104,7 +104,52 @@ export const useStore = create((set, get) => ({
     return orden;
   },
 
-  // Reporte "Artículos a Comprar": stock_actual < stock_critico.
+  // Reporte "Artículos a Comprar": stock_actual < stock_critico (solo activos).
   articulosACOmprar: () =>
-    get().productos.filter((p) => p.stock_actual < p.stock_critico),
+    get().productos.filter((p) => p.activo !== false && p.stock_actual < p.stock_critico),
+
+  // ── ADMIN: gestión de inventario (ABM) ──
+  // Edita stock, stock crítico, precio base o estado activo de un producto.
+  actualizarProducto: (id, patch) =>
+    set((state) => ({
+      productos: state.productos.map((p) => {
+        if (p.id !== id) return p;
+        const next = { ...p };
+        if ('stock_actual' in patch) next.stock_actual = Math.max(0, Math.round(patch.stock_actual) || 0);
+        if ('stock_critico' in patch) next.stock_critico = Math.max(0, Math.round(patch.stock_critico) || 0);
+        if ('activo' in patch) next.activo = patch.activo;
+        if ('precioBase' in patch) {
+          const precio = Math.max(0, Number(patch.precioBase) || 0);
+          next.unidades = p.unidades.map((u, i) => (i === 0 ? { ...u, precio } : u));
+        }
+        return next;
+      }),
+    })),
+
+  // Reponer stock al nivel sugerido (lead time): deja stock = 2x crítico.
+  reponerStock: (id) =>
+    set((state) => ({
+      productos: state.productos.map((p) =>
+        p.id === id ? { ...p, stock_actual: Math.max(p.stock_actual, p.stock_critico * 2) } : p,
+      ),
+    })),
+
+  // KPIs del panel de administración.
+  metricas: () => {
+    const { productos, ordenes } = get();
+    const activos = productos.filter((p) => p.activo !== false);
+    const valorInventario = activos.reduce(
+      (s, p) => s + p.stock_actual * (p.unidades[0]?.precio ?? 0),
+      0,
+    );
+    const completadas = ordenes.filter((o) => o.status === 'COMPLETADA');
+    return {
+      totalProductos: activos.length,
+      valorInventario,
+      pendientes: ordenes.filter((o) => o.status === 'PENDIENTE').length,
+      completadas: completadas.length,
+      ingresos: completadas.reduce((s, o) => s + o.total, 0),
+      aComprar: activos.filter((p) => p.stock_actual < p.stock_critico).length,
+    };
+  },
 }));
