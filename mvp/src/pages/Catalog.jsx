@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../store/useStore.js';
 import { useSettings } from '../store/useSettings.js';
+import { useUI } from '../store/useUI.js';
 import { CATEGORIAS } from '../data/products.js';
 
 // PILAR 3 — Vista del Cliente: catálogo + checkout por WhatsApp.
@@ -32,6 +33,7 @@ export default function Catalog() {
   const total = useStore((s) => s.totalCarrito());
   const crearOrden = useStore((s) => s.crearOrdenPendiente);
   const marca = useSettings();
+  const toast = useUI((s) => s.toast);
 
   const [filtro, setFiltro] = useState('Todas');
   const [cliente, setCliente] = useState('');
@@ -46,6 +48,7 @@ export default function Catalog() {
     window.open(url, '_blank'); // simula apertura de WhatsApp
     setEnviado(orden.code);
     setCliente('');
+    toast('success', `Pedido ${orden.code} enviado · pendiente de validación`);
   }
 
   return (

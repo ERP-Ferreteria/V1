@@ -1,4 +1,5 @@
 import { useStore } from '../store/useStore.js';
+import { useUI } from '../store/useUI.js';
 
 // PILAR 4 — Tablero Kanban de órdenes para el administrador.
 // Columna 'Pendientes' (vienen del checkout) y 'Completadas'.
@@ -6,16 +7,22 @@ import { useStore } from '../store/useStore.js';
 export default function Kanban() {
   const ordenes = useStore((s) => s.ordenes);
   const aprobar = useStore((s) => s.aprobarPago);
+  const ask = useUI((s) => s.ask);
+  const toast = useUI((s) => s.toast);
 
   const pendientes = ordenes.filter((o) => o.status === 'PENDIENTE');
   const completadas = ordenes.filter((o) => o.status === 'COMPLETADA');
 
-  function handleAprobar(orden) {
-    const ref = window.prompt(
-      `Aprobar pago de ${orden.code}\n\nIngresá la referencia bancaria del comprobante recibido por WhatsApp:`,
-    );
+  async function handleAprobar(orden) {
+    const ref = await ask({
+      title: `Aprobar pago · ${orden.code}`,
+      label: 'Referencia bancaria del comprobante recibido por WhatsApp',
+      placeholder: 'Ej: 0034-9981-COMPROB',
+      confirmText: 'Aprobar pago',
+    });
     if (ref === null) return; // canceló
-    aprobar(orden.code, ref.trim() || 'S/REF');
+    aprobar(orden.code, ref);
+    toast('success', `Pago de ${orden.code} aprobado · stock descontado`);
   }
 
   return (

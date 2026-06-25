@@ -3,6 +3,8 @@ import { NavLink, Route, Routes, Navigate } from 'react-router-dom';
 import { useStore } from './store/useStore.js';
 import { useSettings, applyBranding } from './store/useSettings.js';
 import StockAlert from './components/StockAlert.jsx';
+import Toaster from './components/Toaster.jsx';
+import PromptModal from './components/PromptModal.jsx';
 import Catalog from './pages/Catalog.jsx';
 import Pos from './pages/Pos.jsx';
 import Kanban from './pages/Kanban.jsx';
@@ -56,6 +58,9 @@ export default function App() {
           <Route path="/configuracion" element={<Settings />} />
         </Routes>
       </main>
+
+      <Toaster />
+      <PromptModal />
     </div>
   );
 }

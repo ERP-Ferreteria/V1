@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store/useStore.js';
+import { useUI } from '../store/useUI.js';
 import { CATEGORIAS } from '../data/products.js';
 
 // PILAR 2 — Vista del Cajero: POS táctil.
@@ -12,13 +13,14 @@ export default function Pos() {
   const vaciar = useStore((s) => s.vaciarCarrito);
   const cobrar = useStore((s) => s.cobrarEnMostrador);
   const total = useStore((s) => s.totalCarrito());
+  const toast = useUI((s) => s.toast);
 
   const [cat, setCat] = useState('Tornillería');
   const visibles = productos.filter((p) => p.categoria === cat);
 
   function finalizar() {
     const orden = cobrar();
-    if (orden) alert(`✅ Venta ${orden.code} cobrada en efectivo.\nStock actualizado.`);
+    if (orden) toast('success', `Venta ${orden.code} cobrada · stock actualizado`);
   }
 
   return (
