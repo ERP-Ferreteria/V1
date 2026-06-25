@@ -1,22 +1,26 @@
 import { useState } from 'react';
 import { useStore } from '../store/useStore.js';
+import { useSettings } from '../store/useSettings.js';
 import { CATEGORIAS } from '../data/products.js';
 
 // PILAR 3 — Vista del Cliente: catálogo + checkout por WhatsApp.
-// Número de la ferretería (demo). Cambiar por el real en producción.
-const WHATSAPP_FERRETERIA = '5491122334455';
+// El número de WhatsApp y los datos bancarios salen del branding White-Label
+// (editables en Configuración), no hardcodeados.
 
-function armarMensaje(orden) {
+function armarMensaje(orden, marca) {
   const lineas = orden.items
     .map((l) => `• ${l.cantidad} ${l.unit} ${l.nombre} — $${l.precio * l.cantidad}`)
     .join('\n');
   const msg =
-    `🧾 *Pedido ${orden.code}*\n` +
+    `🧾 *Pedido ${orden.code}* — ${marca.storeName}\n` +
     `Cliente: ${orden.cliente}\n\n` +
     `${lineas}\n\n` +
     `*TOTAL: $${orden.total.toLocaleString('es-AR')}*\n\n` +
-    `Quiero pagar por transferencia. Por favor envíenme los datos bancarios; ` +
-    `adjunto el comprobante para validar el pedido. ¡Gracias!`;
+    `Datos para transferir:\n` +
+    `🏦 ${marca.bankName}\n` +
+    `${marca.bankAccount}\n` +
+    `Titular: ${marca.bankHolder}\n\n` +
+    `Adjunto el comprobante para validar el pedido. ¡Gracias!`;
   return encodeURIComponent(msg);
 }
 
@@ -27,6 +31,7 @@ export default function Catalog() {
   const cambiarCantidad = useStore((s) => s.cambiarCantidad);
   const total = useStore((s) => s.totalCarrito());
   const crearOrden = useStore((s) => s.crearOrdenPendiente);
+  const marca = useSettings();
 
   const [filtro, setFiltro] = useState('Todas');
   const [cliente, setCliente] = useState('');
@@ -37,7 +42,7 @@ export default function Catalog() {
   function confirmarPorWhatsapp() {
     if (carrito.length === 0) return;
     const orden = crearOrden(cliente.trim() || 'Consumidor Final', 'WhatsApp');
-    const url = `https://wa.me/${WHATSAPP_FERRETERIA}?text=${armarMensaje(orden)}`;
+    const url = `https://wa.me/${marca.whatsappPhone}?text=${armarMensaje(orden, marca)}`;
     window.open(url, '_blank'); // simula apertura de WhatsApp
     setEnviado(orden.code);
     setCliente('');
@@ -47,7 +52,7 @@ export default function Catalog() {
     <div className="catalog-layout">
       <div className="catalog-main">
         <div className="store-hero">
-          <h2>🛒 Ferretería El Tornillo — Catálogo Online</h2>
+          <h2>{marca.logoEmoji} {marca.storeName} — Catálogo Online</h2>
           <p>Armá tu pedido y confirmalo por WhatsApp. Te pasamos los datos para transferir.</p>
         </div>
 
