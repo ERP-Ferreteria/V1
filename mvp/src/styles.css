@@ -89,7 +89,31 @@ input { font-family: inherit; }
   content: ''; width: 9px; height: 9px; border-radius: 50%;
   background: var(--green); box-shadow: 0 0 12px var(--green);
 }
-.mainnav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+/* Header público (tienda) — limpio, sin herramientas internas */
+.public-topbar { justify-content: space-between; }
+.store-contact {
+  display: inline-flex; align-items: center; gap: 7px; text-decoration: none;
+  color: #04210f; font-weight: 700; font-size: 13.5px; padding: 9px 16px; border-radius: 99px;
+  background: linear-gradient(180deg, #34e07a, #16b85c); box-shadow: 0 6px 16px rgba(34, 197, 94, 0.3);
+  transition: filter 0.2s var(--ease);
+}
+.store-contact:hover { filter: brightness(1.06); }
+
+/* Header back-office (/admin) — con acento de gestión */
+.admin-topbar { border-bottom-color: color-mix(in srgb, var(--primary) 30%, var(--hairline)); }
+.admin-tag {
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--primary); background: color-mix(in srgb, var(--primary) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  padding: 2px 8px; border-radius: 6px;
+}
+.view-store {
+  margin-left: 8px; color: var(--green) !important; font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--green) 40%, transparent) !important;
+}
+.view-store:hover { background: color-mix(in srgb, var(--green) 12%, transparent) !important; }
+
+.mainnav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; align-items: center; }
 .mainnav a {
   position: relative; display: inline-flex; align-items: center; gap: 6px;
   text-decoration: none; color: var(--text-2); font-weight: 600; font-size: 14px;

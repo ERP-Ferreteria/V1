@@ -1,82 +1,56 @@
 import { useEffect } from 'react';
-import { NavLink, Route, Routes, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useStore } from './store/useStore.js';
 import { useSettings, applyBranding } from './store/useSettings.js';
-import StockAlert from './components/StockAlert.jsx';
 import Toaster from './components/Toaster.jsx';
 import PromptModal from './components/PromptModal.jsx';
-import BrandMark from './components/BrandMark.jsx';
+import PublicLayout from './layouts/PublicLayout.jsx';
+import AdminLayout from './layouts/AdminLayout.jsx';
 import Catalog from './pages/Catalog.jsx';
 import Pos from './pages/Pos.jsx';
 import Kanban from './pages/Kanban.jsx';
 import Admin from './pages/Admin.jsx';
 import Settings from './pages/Settings.jsx';
 
-// PILAR 5 — Router + layout. Las 3 vistas comparten el mismo estado global.
-// La marca (nombre/logo/colores) viene del store White-Label persistido.
+// Dos áreas separadas:
+//  · Público  → /catalogo (lo que ve el cliente)
+//  · Back-office → /admin/* (oculto: Dashboard, Cajero, Órdenes, Personalización)
 export default function App() {
-  const pendientes = useStore((s) => s.ordenes.filter((o) => o.status === 'PENDIENTE').length);
-  const enCarrito = useStore((s) => s.carrito.reduce((n, l) => n + l.cantidad, 0));
   const primaryColor = useSettings((s) => s.primaryColor);
   const accentColor = useSettings((s) => s.accentColor);
-  const conectado = useStore((s) => s.conectado);
   const cargarDesdeBackend = useStore((s) => s.cargarDesdeBackend);
 
-  // Inyectar el theme de marca al montar y ante cambios de color.
   useEffect(() => {
     applyBranding({ primaryColor, accentColor });
   }, [primaryColor, accentColor]);
 
-  // Hidratar desde el backend si hay modo cloud configurado (no-op en demo).
   useEffect(() => {
     cargarDesdeBackend();
   }, [cargarDesdeBackend]);
 
   return (
-    <div className="app">
-      <header className="topbar">
-        <div className="brand">
-          <BrandMark size={26} />
-          <span className={`conn-pill ${conectado ? 'on' : 'demo'}`} title={conectado ? 'Datos del backend real' : 'Datos locales de demostración'}>
-            {conectado ? 'Conectado' : 'Demo'}
-          </span>
-        </div>
-        <nav className="mainnav">
-          <NavLink to="/catalogo" className={({ isActive }) => (isActive ? 'active' : '')}>
-            🛒 Cliente (Catálogo)
-            {enCarrito > 0 && <span className="nav-badge">{enCarrito}</span>}
-          </NavLink>
-          <NavLink to="/pos" className={({ isActive }) => (isActive ? 'active' : '')}>
-            🧾 Cajero (POS)
-          </NavLink>
-          <NavLink to="/kanban" className={({ isActive }) => (isActive ? 'active' : '')}>
-            📋 Kanban
-            {pendientes > 0 && <span className="nav-badge alert">{pendientes}</span>}
-          </NavLink>
-          <NavLink to="/admin" className={({ isActive }) => (isActive ? 'active' : '')}>
-            📊 Admin
-          </NavLink>
-          <NavLink to="/configuracion" className={({ isActive }) => (isActive ? 'active' : '')}>
-            ⚙️ Personalizar
-          </NavLink>
-        </nav>
-      </header>
+    <>
+      <Routes>
+        <Route path="/" element={<Navigate to="/catalogo" replace />} />
 
-      <StockAlert />
-
-      <main className="content">
-        <Routes>
-          <Route path="/" element={<Navigate to="/catalogo" replace />} />
+        {/* Público */}
+        <Route element={<PublicLayout />}>
           <Route path="/catalogo" element={<Catalog />} />
-          <Route path="/pos" element={<Pos />} />
-          <Route path="/kanban" element={<Kanban />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/configuracion" element={<Settings />} />
-        </Routes>
-      </main>
+        </Route>
+
+        {/* Back-office (oculto al cliente, accesible por URL /admin) */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Admin />} />
+          <Route path="pos" element={<Pos />} />
+          <Route path="kanban" element={<Kanban />} />
+          <Route path="personalizar" element={<Settings />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/catalogo" replace />} />
+      </Routes>
 
       <Toaster />
       <PromptModal />
-    </div>
+    </>
   );
 }
