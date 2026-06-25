@@ -5,6 +5,7 @@ import { useSettings, applyBranding } from './store/useSettings.js';
 import StockAlert from './components/StockAlert.jsx';
 import Toaster from './components/Toaster.jsx';
 import PromptModal from './components/PromptModal.jsx';
+import BrandMark from './components/BrandMark.jsx';
 import Catalog from './pages/Catalog.jsx';
 import Pos from './pages/Pos.jsx';
 import Kanban from './pages/Kanban.jsx';
@@ -15,8 +16,6 @@ import Settings from './pages/Settings.jsx';
 export default function App() {
   const pendientes = useStore((s) => s.ordenes.filter((o) => o.status === 'PENDIENTE').length);
   const enCarrito = useStore((s) => s.carrito.reduce((n, l) => n + l.cantidad, 0));
-  const storeName = useSettings((s) => s.storeName);
-  const logoEmoji = useSettings((s) => s.logoEmoji);
   const primaryColor = useSettings((s) => s.primaryColor);
   const accentColor = useSettings((s) => s.accentColor);
 
@@ -28,7 +27,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">{logoEmoji} {storeName}</div>
+        <div className="brand"><BrandMark size={26} /></div>
         <nav className="mainnav">
           <NavLink to="/catalogo" className={({ isActive }) => (isActive ? 'active' : '')}>
             🛒 Cliente (Catálogo)

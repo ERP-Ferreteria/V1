@@ -290,6 +290,34 @@ input { font-family: inherit; }
 .btn-reset { margin-left: auto; background: var(--surface-3); color: var(--text-2); border: 1px solid var(--hairline); border-radius: var(--radius-sm); padding: 11px 16px; font-weight: 600; transition: all 0.16s; }
 .btn-reset:hover { color: var(--text); border-color: var(--hairline-2); }
 
+/* ───────────────────── Marca / Logo ───────────────────── */
+.brandmark { display: inline-flex; align-items: center; gap: 9px; }
+.brandmark-img { width: auto; max-width: 160px; object-fit: contain; border-radius: 6px; display: block; }
+.brandmark-name { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; letter-spacing: -0.03em; white-space: nowrap; }
+.store-hero-title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.hero-logo { height: 40px; width: auto; object-fit: contain; border-radius: 8px; }
+.preview-logo { height: 22px; width: auto; object-fit: contain; vertical-align: middle; margin-right: 6px; border-radius: 4px; }
+
+.logo-field { margin-bottom: 16px; }
+.logo-label { display: block; font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+.logo-uploader { display: flex; align-items: center; gap: 16px; }
+.logo-preview {
+  width: 76px; height: 76px; flex-shrink: 0; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  background: var(--bg-0); border: 1px dashed var(--hairline-2); font-size: 34px;
+}
+.logo-preview img { width: 100%; height: 100%; object-fit: contain; }
+.logo-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.logo-actions small { color: var(--muted); font-size: 11.5px; }
+.btn-upload {
+  cursor: pointer; padding: 9px 16px; border-radius: 11px; font-weight: 700; font-size: 13.5px; color: #fff;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 90%, white), var(--primary));
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--primary) 32%, transparent); transition: filter 0.2s var(--ease);
+}
+.btn-upload:hover { filter: brightness(1.07); }
+.btn-remove { background: none; color: var(--muted); font-size: 12.5px; text-decoration: underline; padding: 0; }
+.btn-remove:hover { color: var(--red); }
+
 /* ───────────────────── Toasts ───────────────────── */
 .toaster { position: fixed; bottom: 22px; right: 22px; z-index: 80; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
 .toast {

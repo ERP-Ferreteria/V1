@@ -16,9 +16,12 @@ import brandingController from './modules/branding/branding.controller';
  *  3. Privado por tenant→ /api/* (authenticate → tenantContext + RLS + RBAC + planes)
  */
 const app = express();
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '4mb' })); // holgura para logos en base64
+
+// Assets de branding subidos (logos) en modo disco local.
+app.use('/uploads', express.static('uploads', { maxAge: '1y', immutable: true }));
 
 app.get('/health', (_req, res) => res.json({ ok: true }));
 

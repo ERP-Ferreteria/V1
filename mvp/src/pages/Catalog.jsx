@@ -55,7 +55,14 @@ export default function Catalog() {
     <div className="catalog-layout">
       <div className="catalog-main">
         <div className="store-hero">
-          <h2>{marca.logoEmoji} {marca.storeName} — Catálogo Online</h2>
+          <h2 className="store-hero-title">
+            {marca.logoUrl ? (
+              <img className="hero-logo" src={marca.logoUrl} alt={marca.storeName} />
+            ) : (
+              <span>{marca.logoEmoji}</span>
+            )}
+            {marca.storeName} — Catálogo Online
+          </h2>
           <p>Armá tu pedido y confirmalo por WhatsApp. Te pasamos los datos para transferir.</p>
         </div>
 

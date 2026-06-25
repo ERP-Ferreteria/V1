@@ -8,6 +8,7 @@ import { persist } from 'zustand/middleware';
 const DEFAULTS = {
   storeName: 'Ferretería El Tornillo',
   logoEmoji: '🛠️',
+  logoUrl: '', // imagen de logo (data URL); si está, reemplaza al emoji
   primaryColor: '#2563eb', // botones, acentos primarios
   accentColor: '#22c55e', // confirmaciones, cobrar
   whatsappPhone: '5491122334455', // E.164 sin '+'
