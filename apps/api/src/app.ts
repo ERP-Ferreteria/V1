@@ -1,11 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { authenticate, requirePermission } from './middleware/auth';
-import { blockIfNotOperational, enforceProductLimit, enforceOrderLimit } from './modules/billing/planGuard';
+import { authenticate } from './middleware/auth';
+import { blockIfNotOperational } from './modules/billing/planGuard';
 import authController from './modules/auth/auth.controller';
 import storefrontController from './modules/storefront/storefront.controller';
-import { PERMISSIONS as P } from './modules/auth/roles';
+import inventoryController from './modules/inventory/inventory.controller';
+import ordersController from './modules/orders/orders.controller';
+import brandingController from './modules/branding/branding.controller';
 
 /**
  * Composición de la API. Tres planos:
@@ -26,18 +28,9 @@ app.use('/auth', authController);
 
 // 3 — todo lo de /api corre dentro del contexto del tenant (RLS automático).
 app.use('/api', authenticate, blockIfNotOperational());
-
-// Ejemplos de rutas privadas con RBAC + límites de plan
-// (los controladores de inventario/órdenes/branding se enganchan aquí):
-app.post('/api/products', requirePermission(P.PRODUCT_WRITE), enforceProductLimit(), (_req, res) =>
-  res.status(501).json({ error: 'inventory.controller pendiente de portar' }),
-);
-app.post('/api/orders', requirePermission(P.POS_SELL), enforceOrderLimit(), (_req, res) =>
-  res.status(501).json({ error: 'orders.controller pendiente de portar' }),
-);
-app.post('/api/orders/:id/approve', requirePermission(P.ORDER_APPROVE), (_req, res) =>
-  res.status(501).json({ error: 'orders.controller pendiente de portar' }),
-);
+app.use('/api/inventory', inventoryController);
+app.use('/api/orders', ordersController);
+app.use('/api/branding', brandingController);
 
 // Handler de errores centralizado.
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

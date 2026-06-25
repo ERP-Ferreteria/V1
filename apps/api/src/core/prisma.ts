@@ -32,3 +32,19 @@ export const prisma = base.$extends({
 
 /** Conexión sin scoping para el plano de control SaaS (provisioning, billing webhooks). */
 export const adminPrisma = base;
+
+/**
+ * Transacción atómica acotada al tenant actual.
+ * Abre UNA sola transacción, fija `app.current_tenant` y ejecuta el callback —
+ * evita el anidamiento que produciría la extensión por-operación en flujos
+ * multi-statement (reservas de stock, validación de órdenes).
+ */
+export async function tenantTransaction<T>(
+  fn: (tx: Parameters<Parameters<typeof base.$transaction>[0]>[0]) => Promise<T>,
+): Promise<T> {
+  const tenantId = tenantContext.tenantId();
+  return base.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_tenant', ${tenantId}, true)`;
+    return fn(tx);
+  });
+}

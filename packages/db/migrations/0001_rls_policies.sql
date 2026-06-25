@@ -25,29 +25,31 @@ BEGIN
   END LOOP;
 END $$;
 
--- Política directa: tablas con columna tenantId.
-CREATE POLICY tenant_isolation ON "TenantBranding"
-  USING ("tenantId" = current_setting('app.current_tenant', true)::uuid);
-CREATE POLICY tenant_isolation ON "Subscription"
-  USING ("tenantId" = current_setting('app.current_tenant', true)::uuid);
-CREATE POLICY tenant_isolation ON "User"
-  USING ("tenantId" = current_setting('app.current_tenant', true)::uuid);
-CREATE POLICY tenant_isolation ON "Role"
-  USING ("tenantId" = current_setting('app.current_tenant', true)::uuid);
-CREATE POLICY tenant_isolation ON "FunctionalCategory"
-  USING ("tenantId" = current_setting('app.current_tenant', true)::uuid);
-CREATE POLICY tenant_isolation ON "Supplier"
-  USING ("tenantId" = current_setting('app.current_tenant', true)::uuid);
-CREATE POLICY tenant_isolation ON "Product"
-  USING ("tenantId" = current_setting('app.current_tenant', true)::uuid);
-CREATE POLICY tenant_isolation ON "Order"
-  USING ("tenantId" = current_setting('app.current_tenant', true)::uuid);
+-- Política directa: tablas con columna tenantId (idempotente: DROP IF EXISTS + CREATE).
+DO $$
+DECLARE
+  t text;
+  direct_tables text[] := ARRAY[
+    'TenantBranding','Subscription','User','Role',
+    'FunctionalCategory','Supplier','Product','Order'
+  ];
+BEGIN
+  FOREACH t IN ARRAY direct_tables LOOP
+    EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I;', t);
+    EXECUTE format(
+      'CREATE POLICY tenant_isolation ON %I USING ("tenantId" = current_setting(''app.current_tenant'', true)::uuid);',
+      t
+    );
+  END LOOP;
+END $$;
 
 -- Tenant: cada inquilino solo se ve a sí mismo (el panel SaaS usa una conexión admin aparte).
+DROP POLICY IF EXISTS tenant_self ON "Tenant";
 CREATE POLICY tenant_self ON "Tenant"
   USING (id = current_setting('app.current_tenant', true)::uuid);
 
 -- Hijas sin tenantId directo: heredan vía la FK al padre ya aislado.
+DROP POLICY IF EXISTS tenant_via_user ON "RefreshToken";
 CREATE POLICY tenant_via_user ON "RefreshToken"
   USING (EXISTS (SELECT 1 FROM "User" u
                  WHERE u.id = "RefreshToken"."userId"
