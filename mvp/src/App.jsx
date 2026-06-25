@@ -19,16 +19,28 @@ export default function App() {
   const enCarrito = useStore((s) => s.carrito.reduce((n, l) => n + l.cantidad, 0));
   const primaryColor = useSettings((s) => s.primaryColor);
   const accentColor = useSettings((s) => s.accentColor);
+  const conectado = useStore((s) => s.conectado);
+  const cargarDesdeBackend = useStore((s) => s.cargarDesdeBackend);
 
   // Inyectar el theme de marca al montar y ante cambios de color.
   useEffect(() => {
     applyBranding({ primaryColor, accentColor });
   }, [primaryColor, accentColor]);
 
+  // Hidratar desde el backend si hay modo cloud configurado (no-op en demo).
+  useEffect(() => {
+    cargarDesdeBackend();
+  }, [cargarDesdeBackend]);
+
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand"><BrandMark size={26} /></div>
+        <div className="brand">
+          <BrandMark size={26} />
+          <span className={`conn-pill ${conectado ? 'on' : 'demo'}`} title={conectado ? 'Datos del backend real' : 'Datos locales de demostración'}>
+            {conectado ? 'Conectado' : 'Demo'}
+          </span>
+        </div>
         <nav className="mainnav">
           <NavLink to="/catalogo" className={({ isActive }) => (isActive ? 'active' : '')}>
             🛒 Cliente (Catálogo)

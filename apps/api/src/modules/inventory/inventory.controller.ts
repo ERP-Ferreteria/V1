@@ -41,28 +41,41 @@ router.get(
   }),
 );
 
-/** Alta de producto con unidades de venta (limitada por plan). */
+/**
+ * Alta de producto (limitada por plan). Acepta `materialFinishId` directo o,
+ * para una UX simple, los nombres `categoria`/`medida`/`material`: en ese caso
+ * upsertea la jerarquía Categoría→Medida→Material y luego crea el producto.
+ */
 router.post(
   '/products',
   requirePermission(P.PRODUCT_WRITE),
   enforceProductLimit(),
   wrap(async (req, res) => {
-    const { materialFinishId, supplierId, sku, name, baseUnit, stockQty, units } = req.body;
+    const b = req.body;
+    const tenantId = tenantContext.tenantId();
+
+    let materialFinishId: string = b.materialFinishId;
+    if (!materialFinishId) {
+      if (!b.categoria || !b.medida || !b.material) {
+        return res.status(400).json({ error: 'Indicá materialFinishId o categoria+medida+material' });
+      }
+      materialFinishId = await findOrCreateHierarchy(tenantId, b.categoria, b.medida, b.material);
+    }
+
     const product = await prisma.product.create({
       data: {
-        tenantId: tenantContext.tenantId(),
+        tenantId,
         materialFinishId,
-        supplierId: supplierId ?? null,
-        sku,
-        name,
-        baseUnit: baseUnit ?? 'UNIDAD',
-        stockQty: stockQty ?? 0,
+        supplierId: b.supplierId ?? null,
+        sku: b.sku,
+        name: b.name,
+        emoji: b.emoji ?? null,
+        baseUnit: b.baseUnit ?? 'UNIDAD',
+        stockQty: b.stockQty ?? 0,
+        criticalStock: b.criticalStock ?? 0,
         units: {
-          create: (units ?? []).map((u: any) => ({
-            unit: u.unit,
-            factor: u.factor,
-            price: u.price,
-            barcode: u.barcode ?? null,
+          create: (b.units ?? []).map((u: any) => ({
+            unit: u.unit, factor: u.factor, price: u.price, barcode: u.barcode ?? null,
           })),
         },
       },
@@ -71,6 +84,20 @@ router.post(
     res.status(201).json(product);
   }),
 );
+
+/** Upsert idempotente de la jerarquía funcional; devuelve el materialFinishId. */
+async function findOrCreateHierarchy(tenantId: string, categoria: string, medida: string, material: string) {
+  const category =
+    (await prisma.functionalCategory.findFirst({ where: { name: categoria } })) ??
+    (await prisma.functionalCategory.create({ data: { tenantId, name: categoria } }));
+  const measure =
+    (await prisma.measure.findFirst({ where: { categoryId: category.id, value: medida } })) ??
+    (await prisma.measure.create({ data: { categoryId: category.id, value: medida } }));
+  const mf =
+    (await prisma.materialFinish.findFirst({ where: { measureId: measure.id, value: material } })) ??
+    (await prisma.materialFinish.create({ data: { measureId: measure.id, value: material } }));
+  return mf.id;
+}
 
 /**
  * Reporte "Artículos a Comprar": disponible (físico − reservado) bajo el punto

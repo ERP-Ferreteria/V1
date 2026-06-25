@@ -1,18 +1,46 @@
 import { create } from 'zustand';
 import { PRODUCTS } from '../data/products.js';
+import { isConnected, isLoggedIn, inventory as apiInv, orders as apiOrders, flattenCatalog } from '../api/api.js';
 
-// PILAR 5 — Estado global en memoria.
-// Catálogo, carrito y órdenes viven aquí: un pedido hecho en la Vista Cliente
-// aparece al instante en el Kanban del cajero, y aprobar el pago descuenta el
-// stock global que ve el POS. Sin backend: todo es estado React.
+// PILAR 5 — Estado global.
+// Modo demo: todo en memoria. Modo cloud (VITE_API_URL + login): hidrata desde
+// el backend multi-tenant y las altas/órdenes impactan la API real.
 
 let orderSeq = 1;
 const nextCode = () => `ORD-${String(orderSeq++).padStart(4, '0')}`;
+
+// API order (en) → forma del MVP (es), para mostrar en el Kanban.
+const mapApiOrder = (o) => ({
+  code: o.code,
+  status: o.status === 'COMPLETADA' ? 'COMPLETADA' : 'PENDIENTE',
+  cliente: o.customerName ?? 'Consumidor Final',
+  origen: o.source === 'POS_OFFLINE' ? 'POS' : 'WhatsApp',
+  ref: o.bankReference ?? null,
+  total: Number(o.total),
+  items: (o.items ?? []).map((it) => ({
+    cantidad: it.quantity, unit: it.productUnit?.unit, nombre: it.product?.name,
+    precio: Number(it.unitPrice ?? 0), productId: it.productId, factor: 1,
+  })),
+});
 
 export const useStore = create((set, get) => ({
   productos: PRODUCTS,
   carrito: [], // [{ key, productId, nombre, unit, factor, precio, cantidad }]
   ordenes: [], // [{ code, status, items, total, cliente, origen, ref, creada }]
+  conectado: false, // true cuando los datos vienen del backend real
+
+  // Hidrata catálogo + órdenes desde el backend (modo cloud). No-op en demo.
+  cargarDesdeBackend: async () => {
+    if (!isConnected() || !isLoggedIn()) return false;
+    try {
+      const [tree, ord] = await Promise.all([apiInv.tree(), apiOrders.list()]);
+      set({ productos: flattenCatalog(tree), ordenes: ord.map(mapApiOrder), conectado: true });
+      return true;
+    } catch (e) {
+      console.warn('No se pudo hidratar desde el backend:', e.message);
+      return false;
+    }
+  },
 
   // ── Carrito (compartido por POS y Catálogo) ──
   agregarAlCarrito: (producto, unidad) =>
@@ -125,6 +153,33 @@ export const useStore = create((set, get) => ({
         return next;
       }),
     })),
+
+  // Alta de producto. En cloud lo crea en la API y re-hidrata; en demo lo
+  // agrega al estado local. Devuelve { ok, error? }.
+  agregarProducto: async (data) => {
+    const nuevo = {
+      id: `local-${Date.now()}`,
+      sku: data.sku, nombre: data.nombre, emoji: data.emoji || '📦',
+      categoria: data.categoria, medida: data.medida, material: data.material,
+      stock_actual: Math.max(0, Math.round(data.stock_actual) || 0),
+      stock_critico: Math.max(0, Math.round(data.stock_critico) || 0),
+      activo: true,
+      unidades: data.unidades.filter((u) => u.unit && u.precio > 0),
+    };
+    if (nuevo.unidades.length === 0) return { ok: false, error: 'Agregá al menos una unidad con precio' };
+
+    if (get().conectado) {
+      try {
+        await apiInv.createProduct(nuevo);
+        await get().cargarDesdeBackend();
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: e.message };
+      }
+    }
+    set((state) => ({ productos: [nuevo, ...state.productos] }));
+    return { ok: true };
+  },
 
   // Reponer stock al nivel sugerido (lead time): deja stock = 2x crítico.
   reponerStock: (id) =>

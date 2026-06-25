@@ -209,6 +209,7 @@ model Product {
   supplierId       String? @db.Uuid
   sku              String
   name             String
+  emoji            String? // ícono para POS/catálogo
   baseUnit         String  @default("UNIDAD")
   stockQty         Int     @default(0)
   reservedQty      Int     @default(0)

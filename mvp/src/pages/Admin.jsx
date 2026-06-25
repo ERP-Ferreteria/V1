@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store/useStore.js';
 import { useUI } from '../store/useUI.js';
 import { CATEGORIAS } from '../data/products.js';
+import ProductFormModal from '../components/ProductFormModal.jsx';
 
 // /admin — Panel de control de la ferretería.
 // KPIs en vivo + gestión de inventario (ABM): editar stock, stock crítico,
@@ -15,6 +16,7 @@ export default function Admin() {
 
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('Todas');
+  const [nuevoOpen, setNuevoOpen] = useState(false);
 
   const visibles = productos.filter(
     (p) =>
@@ -72,6 +74,7 @@ export default function Admin() {
                 <option key={c.nombre}>{c.nombre}</option>
               ))}
             </select>
+            <button className="btn-new" onClick={() => setNuevoOpen(true)}>➕ Nuevo producto</button>
           </div>
         </div>
 
@@ -160,6 +163,8 @@ export default function Admin() {
           </table>
         </div>
       </div>
+
+      <ProductFormModal open={nuevoOpen} onClose={() => setNuevoOpen(false)} />
     </div>
   );
 }

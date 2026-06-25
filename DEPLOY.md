@@ -63,13 +63,26 @@ render.com → **New → Blueprint** → conectar el repo → Render lee
 
 ---
 
-## 4. Conectar el MVP al backend real (siguiente paso)
+## 4. Conectar el MVP al backend real (modo cloud)
 
-Hoy el MVP corre con datos en memoria (ideal para demo). Para que consuma el API:
-- Reemplazar el seed en memoria de `mvp/src/store/useStore.js` por `fetch` a
-  `/api/inventory/tree` y `/api/orders`.
-- Cargar el branding desde `/storefront/branding` (ya implementado en
-  `apps/web-storefront/src/branding/useBranding.ts`).
+El MVP funciona en **dos modos** (pill "Demo"/"Conectado" en el header):
+
+- **Demo** (default): datos en memoria. Es lo que está deployado hoy.
+- **Cloud**: habla con la API real. Se activa con una variable de entorno en Vercel:
+
+```bash
+# Project → Settings → Environment Variables
+VITE_API_URL = https://ferremax-api.onrender.com   # URL del backend desplegado
+```
+
+Con eso, al cargar la app:
+- `cargarDesdeBackend()` hidrata catálogo + órdenes desde `/api/inventory/tree` y `/api/orders`.
+- El **alta de productos** del /admin crea contra `POST /api/inventory/products`
+  (acepta nombres categoria/medida/material y upsertea la jerarquía).
+- El cliente API (`mvp/src/api/api.js`) maneja login, token y refresh automático.
+
+> Falta el formulario de login en la UI del MVP (hoy el token se setea vía
+> `api.auth.login()`); es el último gancho para el flujo cloud completo.
 
 ---
 
