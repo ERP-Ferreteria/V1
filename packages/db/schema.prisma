@@ -1,0 +1,329 @@
+// ════════════════════════════════════════════════════════════════════
+//  Ferremax SaaS — Esquema definitivo multi-tenant (PostgreSQL)
+//  Dominios: Tenancy · Identidad/RBAC · White-Label · Billing ·
+//            Inventario · Órdenes
+//  Aislamiento: columna tenantId en toda entidad de negocio + RLS
+//  (ver migrations/0001_rls_policies.sql). Índices compuestos por tenant
+//  para que el planificador no escanee fuera del inquilino.
+// ════════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────── TENANCY ─────────────────────────────
+
+model Tenant {
+  id        String       @id @default(uuid()) @db.Uuid
+  slug      String       @unique // subdominio: <slug>.ferremax.app
+  name      String
+  status    TenantStatus @default(TRIAL)
+  customDomain String?   @unique // dominio white-label propio del comercio
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  branding     TenantBranding?
+  subscription Subscription?
+  users        User[]
+  roles        Role[]
+  categories   FunctionalCategory[]
+  suppliers    Supplier[]
+  products     Product[]
+  orders       Order[]
+
+  @@index([status])
+}
+
+enum TenantStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE   // pago vencido: solo lectura
+  SUSPENDED  // bloqueado
+  CANCELLED
+}
+
+// ──────────────────────── WHITE-LABEL / BRANDING ────────────────────────
+
+model TenantBranding {
+  tenantId      String  @id @db.Uuid
+  logoUrl       String? // key en S3 → servido por CDN
+  faviconUrl    String?
+  primaryColor  String  @default("#2563eb")
+  accentColor   String  @default("#22c55e")
+  fontFamily    String  @default("Inter")
+  storeTitle    String?
+  whatsappPhone String? // E.164 sin '+'
+  bankName      String?
+  bankAccount   String?
+  bankHolder    String?
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────── BILLING ───────────────────────────
+
+model Plan {
+  id            String  @id @default(uuid()) @db.Uuid
+  code          String  @unique // FREE, PRO, BUSINESS
+  name          String
+  priceMonthly  Decimal @db.Decimal(10, 2)
+  maxProducts   Int     // límites duros que aplica plan.guard.ts
+  maxUsers      Int
+  maxOrdersMonth Int
+  allowCustomDomain Boolean @default(false)
+  allowApiAccess    Boolean @default(false)
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id            String             @id @default(uuid()) @db.Uuid
+  tenantId      String             @unique @db.Uuid
+  planId        String             @db.Uuid
+  status        SubscriptionStatus @default(TRIALING)
+  trialEndsAt   DateTime?
+  currentPeriodEnd DateTime
+  ordersThisPeriod Int             @default(0) // contador para enforcement
+  createdAt     DateTime           @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  @@index([status, currentPeriodEnd])
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+}
+
+// ──────────────────────── IDENTIDAD / RBAC ────────────────────────
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  email        String
+  passwordHash String
+  name         String
+  roleId       String   @db.Uuid
+  active       Boolean  @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id])
+  refreshTokens RefreshToken[]
+  validatedOrders Order[] @relation("ValidatedBy")
+
+  @@unique([tenantId, email]) // email único POR tenant, no global
+  @@index([tenantId])
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  name        String   // OWNER, ADMIN, CAJERO, BODEGA
+  permissions String[] // ej: ["product:write","order:approve"] (lista plana = simple y rápida)
+  isSystem    Boolean  @default(false) // roles base no editables
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users  User[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  tokenHash String   @unique // se guarda el hash, nunca el token plano
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ──────────────── INVENTARIO (jerarquía funcional 3 niveles) ────────────────
+
+model FunctionalCategory {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  name     String
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  measures Measure[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Measure {
+  id         String @id @default(uuid()) @db.Uuid
+  categoryId String @db.Uuid
+  value      String
+
+  category         FunctionalCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  materialFinishes MaterialFinish[]
+
+  @@unique([categoryId, value])
+}
+
+model MaterialFinish {
+  id        String @id @default(uuid()) @db.Uuid
+  measureId String @db.Uuid
+  value     String
+
+  measure  Measure   @relation(fields: [measureId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([measureId, value])
+}
+
+model Supplier {
+  id           String @id @default(uuid()) @db.Uuid
+  tenantId     String @db.Uuid
+  name         String
+  leadTimeDays Int    @default(7)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@index([tenantId])
+}
+
+model Product {
+  id               String  @id @default(uuid()) @db.Uuid
+  tenantId         String  @db.Uuid
+  materialFinishId String  @db.Uuid
+  supplierId       String? @db.Uuid
+  sku              String
+  name             String
+  baseUnit         String  @default("UNIDAD")
+  stockQty         Int     @default(0)
+  reservedQty      Int     @default(0)
+  criticalStock    Int     @default(0)
+  avgDailySales    Float   @default(0)
+  imageUrl         String? // S3 key
+  active           Boolean @default(true)
+  updatedAt        DateTime @updatedAt
+
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  materialFinish MaterialFinish @relation(fields: [materialFinishId], references: [id])
+  supplier       Supplier?      @relation(fields: [supplierId], references: [id])
+  units          ProductUnit[]
+  orderItems     OrderItem[]
+  reservations   StockReservation[]
+
+  @@unique([tenantId, sku])
+  @@index([tenantId, active])           // listados de catálogo activos por tenant
+  @@index([tenantId, materialFinishId]) // navegación jerárquica
+}
+
+model ProductUnit {
+  id        String   @id @default(uuid()) @db.Uuid
+  productId String   @db.Uuid
+  unit      SaleUnit
+  factor    Decimal  @db.Decimal(12, 4)
+  price     Decimal  @db.Decimal(12, 2)
+  barcode   String?
+
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+
+  @@unique([productId, unit])
+}
+
+enum SaleUnit {
+  UNIDAD
+  CAJA
+  LITRO
+  METRO
+  DOCENA
+  KILOGRAMO
+  ROLLO
+  BOLSA
+  PAR
+  SET
+}
+
+// ─────────────────────────── ÓRDENES ───────────────────────────
+
+model Order {
+  id            String      @id @default(uuid()) @db.Uuid
+  tenantId      String      @db.Uuid
+  code          String
+  status        OrderStatus @default(PENDIENTE_VALIDACION)
+  total         Decimal     @db.Decimal(12, 2)
+  customerName  String?
+  customerPhone String?
+  bankReference String?
+  validatedById String?     @db.Uuid
+  validatedAt   DateTime?
+  clientId      String?     @db.Uuid // idempotencia POS offline
+  source        OrderSource @default(ONLINE)
+  reservationExpiresAt DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  validatedBy  User?              @relation("ValidatedBy", fields: [validatedById], references: [id])
+  items        OrderItem[]
+  reservations StockReservation[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, clientId])
+  @@index([tenantId, status, createdAt]) // Kanban: filtra por estado, ordena por fecha
+}
+
+enum OrderStatus {
+  PENDIENTE_VALIDACION
+  COMPLETADA
+  RECHAZADA
+  REQUIERE_REVISION
+}
+
+enum OrderSource {
+  ONLINE
+  POS_OFFLINE
+}
+
+model OrderItem {
+  id            String  @id @default(uuid()) @db.Uuid
+  orderId       String  @db.Uuid
+  productId     String  @db.Uuid
+  productUnitId String  @db.Uuid
+  quantity      Int
+  unitPrice     Decimal @db.Decimal(12, 2)
+  baseQuantity  Int
+
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id])
+  productUnit ProductUnit @relation(fields: [productUnitId], references: [id])
+
+  @@index([orderId])
+}
+
+model StockReservation {
+  id           String    @id @default(uuid()) @db.Uuid
+  orderId      String    @db.Uuid
+  productId    String    @db.Uuid
+  baseQuantity Int
+  releasedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([productId, releasedAt])
+}

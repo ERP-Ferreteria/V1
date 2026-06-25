@@ -1,0 +1,255 @@
+// Ferremax — Modelo de datos (Fase 1)
+// Multi-tenant por columna tenantId + RLS (ver docs/ARQUITECTURA.md)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// ─────────────────────────── Multi-tenancy ───────────────────────────
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  // Datos bancarios que se inyectan en el mensaje de WhatsApp
+  bankName    String?
+  bankAccount String?
+  bankHolder  String?
+  whatsapp    String? // número de la ferretería (formato internacional sin +)
+  createdAt   DateTime @default(now())
+
+  users               User[]
+  categories          FunctionalCategory[]
+  products            Product[]
+  suppliers           Supplier[]
+  orders              Order[]
+}
+
+model User {
+  id        String   @id @default(uuid())
+  tenantId  String
+  email     String
+  password  String // hash
+  name      String
+  role      UserRole @default(CAJERO)
+  createdAt DateTime @default(now())
+
+  tenant         Tenant  @relation(fields: [tenantId], references: [id])
+  validatedOrders Order[] @relation("ValidatedBy")
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+enum UserRole {
+  ADMIN
+  CAJERO
+}
+
+/// ─────────────── Jerarquía de inventario (3 niveles) ───────────────
+/// Categoría Funcional → Medida → Material/Acabado → Product
+/// El proveedor NO es parte de la jerarquía: cuelga del Product.
+
+model FunctionalCategory {
+  id       String @id @default(uuid())
+  tenantId String
+  name     String // "Tornillería", "Plomería", "Electricidad"
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  measures Measure[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Measure {
+  id         String @id @default(uuid())
+  categoryId String
+  value      String // "1/4 pulgada", "1/2", "20mm"
+
+  category        FunctionalCategory @relation(fields: [categoryId], references: [id])
+  materialFinishes MaterialFinish[]
+
+  @@unique([categoryId, value])
+  @@index([categoryId])
+}
+
+model MaterialFinish {
+  id        String @id @default(uuid())
+  measureId String
+  value     String // "Galvanizado", "Bronce", "PVC", "Acero inoxidable"
+
+  measure  Measure   @relation(fields: [measureId], references: [id])
+  products Product[]
+
+  @@unique([measureId, value])
+  @@index([measureId])
+}
+
+/// ─────────────────────────── Producto ───────────────────────────
+
+model Product {
+  id               String @id @default(uuid())
+  tenantId         String
+  materialFinishId String
+  supplierId       String?
+
+  sku         String
+  name        String
+  baseUnit    String  @default("UNIDAD") // unidad en la que se guarda stockQty
+  stockQty    Int     @default(0)        // stock físico en unidad base
+  reservedQty Int     @default(0)        // reservado por órdenes pendientes
+  // Stock crítico: se recalcula con el lead time del proveedor.
+  criticalStock     Int   @default(0)
+  avgDailySales     Float @default(0) // para recalcular criticalStock
+  active            Boolean @default(true)
+  updatedAt         DateTime @updatedAt
+
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  materialFinish MaterialFinish @relation(fields: [materialFinishId], references: [id])
+  supplier       Supplier?      @relation(fields: [supplierId], references: [id])
+  units          ProductUnit[]
+  orderItems     OrderItem[]
+  movements      StockMovement[]
+  reservations   StockReservation[]
+
+  @@unique([tenantId, sku])
+  @@index([tenantId, materialFinishId])
+}
+
+/// Múltiples unidades de venta. factor = cuántas unidades base equivalen.
+/// Ej: producto base "UNIDAD" con ProductUnit "CAJA" factor 100.
+model ProductUnit {
+  id        String  @id @default(uuid())
+  productId String
+  unit      SaleUnit
+  factor    Decimal @db.Decimal(12, 4) // equivalencia a la unidad base
+  price     Decimal @db.Decimal(12, 2) // precio de venta por esta unidad
+  barcode   String?
+
+  product    Product     @relation(fields: [productId], references: [id])
+  orderItems OrderItem[]
+
+  @@unique([productId, unit])
+  @@index([productId])
+}
+
+enum SaleUnit {
+  UNIDAD
+  CAJA
+  LITRO
+  METRO
+  DOCENA
+  KILOGRAMO
+  ROLLO
+  BOLSA
+}
+
+model Supplier {
+  id          String @id @default(uuid())
+  tenantId    String
+  name        String
+  leadTimeDays Int   @default(7) // tiempo de entrega → alimenta stock crítico
+  contact     String?
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  products Product[]
+
+  @@index([tenantId])
+}
+
+/// ─────────────────────────── Órdenes (Fase 2) ───────────────────────────
+
+model Order {
+  id            String      @id @default(uuid())
+  tenantId      String
+  code          String // ORD-XXXXXX, único por tenant
+  status        OrderStatus @default(PENDIENTE_VALIDACION)
+  total         Decimal     @db.Decimal(12, 2)
+  customerName  String?
+  customerPhone String?
+
+  // Validación del cajero (Fase 2.3)
+  bankReference String? // obligatorio al pasar a COMPLETADA
+  validatedById String?
+  validatedAt   DateTime?
+
+  // Soporte offline (Fase 3): id generado en el dispositivo + reconciliación
+  clientId      String? // UUID del POS offline (idempotencia)
+  source        OrderSource @default(ONLINE)
+  reservationExpiresAt DateTime? // expiración de la reserva temporal
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant       Tenant             @relation(fields: [tenantId], references: [id])
+  validatedBy  User?              @relation("ValidatedBy", fields: [validatedById], references: [id])
+  items        OrderItem[]
+  reservations StockReservation[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, clientId]) // idempotencia para sync offline
+  @@index([tenantId, status])
+}
+
+enum OrderStatus {
+  PENDIENTE_VALIDACION
+  COMPLETADA
+  RECHAZADA
+  REQUIERE_REVISION // conflicto de stock detectado en reconciliación
+}
+
+enum OrderSource {
+  ONLINE       // checkout web / WhatsApp
+  POS_OFFLINE  // venta de mostrador sincronizada
+}
+
+model OrderItem {
+  id            String  @id @default(uuid())
+  orderId       String
+  productId     String
+  productUnitId String
+  quantity      Int     // cantidad en la unidad vendida
+  unitPrice     Decimal @db.Decimal(12, 2)
+  baseQuantity  Int     // quantity * factor → descuento sobre stock base
+
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id])
+  productUnit ProductUnit @relation(fields: [productUnitId], references: [id])
+
+  @@index([orderId])
+}
+
+/// Reserva temporal de stock por orden (Fase 2.2)
+model StockReservation {
+  id        String   @id @default(uuid())
+  orderId   String
+  productId String
+  baseQuantity Int
+  releasedAt   DateTime? // null = activa; con fecha = liberada/consumida
+  createdAt    DateTime  @default(now())
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([productId, releasedAt])
+}
+
+/// Auditoría de movimientos de stock
+model StockMovement {
+  id        String   @id @default(uuid())
+  productId String
+  delta     Int      // +entrada / -salida (en unidad base)
+  reason    String   // "VENTA", "RESERVA", "LIBERACION", "COMPRA", "AJUSTE"
+  orderId   String?
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+}

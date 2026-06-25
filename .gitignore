@@ -1,0 +1,30 @@
+# Dependencias
+node_modules/
+**/node_modules/
+
+# Builds
+dist/
+build/
+**/dist/
+*.tsbuildinfo
+
+# Entorno / secretos
+.env
+.env.*
+!.env.example
+
+# Prisma
+**/migrations/dev.db*
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Tooling local de Claude Code
+.claude/
